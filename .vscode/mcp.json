@@ -1,0 +1,9 @@
+{
+    "servers": {
+        "my-mcp-server": {
+            "type": "stdio",
+            "command": "C:\\Users\\vpamulaparthy\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+            "args": ["C:\\Venkata-MCP\\my_server.py"]
+        }
+    }
+}
