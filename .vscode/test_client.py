@@ -12,24 +12,30 @@ if user_base not in sys.path:
     sys.path.append(user_base)
 
 async def run_test():
-    # 2. Tell the client how to start your server
     server_params = StdioServerParameters(
-        command=sys.executable, # Uses the current Python you're in
-        args=["C:/Venkata-MCP/my_server.py"],
+        command=sys.executable,
+        args=["C:/Venkata-MCP/my_server.py"], # This now contains both tools
         env=os.environ.copy()
     )
 
     print("Connecting to MCP Server...")
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
-            # Initialize the connection
             await session.initialize()
             
-            # 3. Call your 'add_numbers' tool!
-            print("Calling tool: add_numbers(a=10, b=20)")
-            result = await session.call_tool("add_numbers", arguments={"a": 10, "b": 20})
-            
-            print(f"\nSERVER RESPONSE: {result.content[0].text}")
+            # 1. Test Math
+            res_math = await session.call_tool("add_numbers", arguments={"a": 10, "b": 20})
+            print(f"Math: {res_math.content[0].text}")
+
+            # 2. Test DB Health
+            db_args = {
+                "db_type": "mssql", 
+                "connection_string": "mssql+pyodbc://your_user:your_pass@localhost/master?driver=ODBC+Driver+17+for+SQL+Server"
+            }
+            res_health = await session.call_tool("inspect_db_health", arguments=db_args)
+            print(f"DB Health: {res_health.content[0].text}")
 
 if __name__ == "__main__":
     asyncio.run(run_test())
+
+

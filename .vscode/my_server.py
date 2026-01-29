@@ -1,64 +1,51 @@
 import sys
 import os
+import sqlalchemy as sa
+from sqlalchemy import text
+from mcp.server.fastmcp import FastMCP
 
-# 1. Define the base path where pip installed your packages
+# Ensure your site-packages are available to the server process
 user_base = os.path.expanduser(
     r"~\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages"
 )
+if user_base not in sys.path:
+    sys.path.append(user_base)
 
-# 2. Add the main site-packages and the hidden win32 folders to sys.path
-paths_to_add = [
-    user_base,
-    os.path.join(user_base, "win32"),
-    os.path.join(user_base, "win32", "lib"),
-    os.path.join(user_base, "Pythonwin")
-]
+mcp = FastMCP("Unified-Venkata-Server")
 
-for p in paths_to_add:
-    if p not in sys.path:
-        sys.path.append(p)
-
-# 3. CRITICAL: Tell Windows where to find the pywin32 DLLs
-# This fixes the 'ModuleNotFoundError: No module named pywintypes'
-os.add_dll_directory(os.path.join(user_base, "pywin32_system32"))
-
-# NOW try the import
-from mcp.server.fastmcp import FastMCP
-
-mcp = FastMCP("MyLocalServer")
-
-# ---TOOL Section 1: Math ---
+# --- Existing Tool ---
 @mcp.tool()
 def add_numbers(a: int, b: int) -> int:
-    """Adds two numbers together."""
     return a + b
 
-# ---TOOL Section 2: File System ---
+# --- New Database Health Tool ---
 @mcp.tool()
-def search_code(directory: str, query: str) -> str:
-    """Searches for a specific string in all text files within a directory."""
-    results = []
-    try:
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                if file.endswith(('.py', '.txt', '.json', '.md')):
-                    path = os.path.join(root, file)
-                    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                        if query in f.read():
-                            results.append(path)
-        return "\n".join(results) if results else "No matches found."
-    except Exception as e:
-        return f"Error: {str(e)}"
+def inspect_db_health(db_type: str, connection_string: str):
+    """
+    Analyzes DB health, IO hotspots, and index efficiency.
+    Supported types: 'mssql', 'postgresql', 'mysql'
+    """
+    engine = sa.create_engine(connection_string)
+    report = {}
 
-# --- TOOL Section 3: File Content ---
-@mcp.tool()
-def read_file(file_path: str) -> str:
-    """Reads the full text content of a file so the AI can analyze it."""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        return f"Error reading file: {str(e)}"
+    with engine.connect() as conn:
+        # SQL Server Logic
+        if db_type == 'mssql':
+            # Get largest DBs
+            db_size_query = "SELECT name, (size * 8 / 1024) as size_mb FROM sys.master_files"
+            # Get IO Latency (Hot Tables indicator)
+            io_query = "SELECT DB_NAME(database_id), io_stall_read_ms FROM sys.dm_io_virtual_file_stats(NULL, NULL)"
+            
+            report['databases'] = [dict(row) for row in conn.execute(text(db_size_query)).fetchmany(5)]
+            report['io_hotspots'] = [dict(row) for row in conn.execute(text(io_query)).fetchmany(5)]
+            report['health_prediction'] = "Analysis complete. Check IO stalls for latency issues."
+
+        # PostgreSQL Logic
+        elif db_type == 'postgresql':
+            pg_query = "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database"
+            report['databases'] = [dict(row) for row in conn.execute(text(pg_query))]
+            
+    return str(report)
 
 if __name__ == "__main__":
     mcp.run()
