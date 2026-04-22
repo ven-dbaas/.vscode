@@ -1,9 +1,10 @@
 {
-    "servers": {
-        "mcpServers": {
-            "my-mcp-server": {
-            "command": "C:\\Users\\vpamulaparthy\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
-            "args": ["C:\\Venkata-MCP\\my_server.py"]
-        }
+  "servers": {
+    "my-mcp-server": {
+      "command": "C:\\Users\\vpamulaparthy\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
+      "args": [
+        "C:\\Venkata-MCP\\my_server.py"
+      ]
     }
+  }
 }
