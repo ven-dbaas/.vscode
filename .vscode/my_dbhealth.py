@@ -18,7 +18,7 @@ def get_advanced_health(db_type: str, conn_str: str):
         if db_type == 'mssql':
             # 1. List User Databases & Sizes
             db_query = "SELECT name, database_id FROM sys.databases WHERE database_id > 4"
-            report['databases'] = [dict(row) for row in conn.execute(text(db_query))]
+            report['databases'] = [dict(row._mapping) for row in conn.execute(text(db_query))]
 
             # 2. IO Hotspots (Virtual File Stats)
             io_query = """
@@ -26,29 +26,29 @@ def get_advanced_health(db_type: str, conn_str: str):
             num_of_reads, num_of_writes FROM sys.dm_io_virtual_file_stats(NULL, NULL)
             ORDER BY io_stall_read_ms DESC;
             """
-            report['hot_tables'] = [dict(row) for row in conn.execute(text(io_query))]
+            report['hot_tables'] = [dict(row._mapping) for row in conn.execute(text(io_query))]
 
             # 3. Missing Indexes (Prediction)
             index_query = """
             SELECT TOP 5 mig.index_handle, mid.statement AS table_name, 
             (migs.user_seeks + migs.user_scans) * migs.avg_user_impact as potential_gain
             FROM sys.dm_db_missing_index_groups mig
-            JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_handle
+            JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_id
             JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
             ORDER BY potential_gain DESC;
             """
-            report['index_stats'] = [dict(row) for row in conn.execute(text(index_query))]
+            report['index_stats'] = [dict(row._mapping) for row in conn.execute(text(index_query))]
 
         # --- POSTGRESQL SPECIFIC (Cache & Bloat) ---
         elif db_type == 'postgresql':
             # 1. Cache Hit Ratio (Goal > 99%)
             cache_query = """
             SELECT sum(heap_blks_read) as read, sum(heap_blks_hit) as hit,
-            (sum(heap_blks_hit) - sum(heap_blks_read)) / sum(heap_blks_hit + 1) * 100 as ratio
+            sum(heap_blks_hit) / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0) * 100 as ratio
             FROM pg_statio_user_tables;
             """
             cache_data = conn.execute(text(cache_query)).fetchone()
-            report['cache_ratio'] = float(cache_data[2]) if cache_data else 0
+            report['cache_ratio'] = float(cache_data[2]) if cache_data and cache_data[2] is not None else 0
 
     # --- Health Prediction Logic ---
     score = 100
